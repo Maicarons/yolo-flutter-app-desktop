@@ -62,27 +62,27 @@ class YOLOModelResolver {
     const _OfficialModelArtifact(
       id: 'yolo11n',
       task: YOLOTask.detect,
-      assetName: 'yolo11n.tflite',
+      assetName: 'yolo11n.onnx',
     ),
     const _OfficialModelArtifact(
       id: 'yolo11n-seg',
       task: YOLOTask.segment,
-      assetName: 'yolo11n-seg.tflite',
+      assetName: 'yolo11n-seg.onnx',
     ),
     const _OfficialModelArtifact(
       id: 'yolo11n-cls',
       task: YOLOTask.classify,
-      assetName: 'yolo11n-cls.tflite',
+      assetName: 'yolo11n-cls.onnx',
     ),
     const _OfficialModelArtifact(
       id: 'yolo11n-pose',
       task: YOLOTask.pose,
-      assetName: 'yolo11n-pose.tflite',
+      assetName: 'yolo11n-pose.onnx',
     ),
     const _OfficialModelArtifact(
       id: 'yolo11n-obb',
       task: YOLOTask.obb,
-      assetName: 'yolo11n-obb.tflite',
+      assetName: 'yolo11n-obb.onnx',
     ),
   ];
 
@@ -95,7 +95,7 @@ class YOLOModelResolver {
     return _OfficialModelArtifact(
       id: id,
       task: task,
-      assetName: '${id}_int8.tflite',
+      assetName: '${id}_int8.onnx',
     );
   }
 
@@ -199,7 +199,8 @@ class YOLOModelResolver {
         .replaceAll('.mlpackage', '')
         .replaceAll('.mlmodelc', '')
         .replaceAll('.mlmodel', '')
-        .replaceAll('.tflite', '');
+        .replaceAll('.tflite', '')
+        .replaceAll('.onnx', '');
     return normalized.isEmpty ? null : normalized;
   }
 

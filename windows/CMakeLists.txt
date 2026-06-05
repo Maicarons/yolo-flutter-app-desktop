@@ -9,13 +9,13 @@ set(PLUGIN_NAME "ultralytics_yolo_plugin")
 # directory (must contain include/ and lib/).  Falls back to the vendored copy
 # under third_party/onnxruntime/.
 if(NOT DEFINED ONNXRUNTIME_ROOT)
-  set(ONNXRUNTIME_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/onnxruntime/onnxruntime-win-x64-1.20.1")
+  set(ONNXRUNTIME_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/third_party/onnxruntime/onnxruntime-win-x64-1.26.0")
 endif()
 
 if(NOT EXISTS "${ONNXRUNTIME_ROOT}/include")
   message(FATAL_ERROR
     "ONNX Runtime not found at ${ONNXRUNTIME_ROOT}. "
-    "Download from https://github.com/microsoft/onnxruntime/releases/tag/v1.20.1 "
+    "Download from https://github.com/microsoft/onnxruntime/releases/tag/v1.26.0 "
     "and extract to windows/third_party/onnxruntime/, or set ONNXRUNTIME_ROOT.")
 endif()
 

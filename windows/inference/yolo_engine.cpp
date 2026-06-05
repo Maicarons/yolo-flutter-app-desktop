@@ -40,12 +40,23 @@ void YoloEngine::LoadModel(const std::string& modelPath,
 
   task_ = task;
 
-  // ONNX Runtime can load TFLite models natively when built with the
-  // TFLite converter.  For standard .tflite files we rely on ORT's
-  // built-in TFLite format support (available since ORT 1.17+).
-  // On Windows, ORT expects wide strings (wchar_t*).
-  session_ = std::make_unique<Ort::Session>(env_, wModelPathCheck.c_str(),
-                                            sessionOpts_);
+  // Try to load the model. ONNX Runtime supports ONNX natively.
+  // TFLite support requires building ORT with TFLite delegate enabled.
+  try {
+    session_ = std::make_unique<Ort::Session>(env_, wModelPathCheck.c_str(),
+                                              sessionOpts_);
+  } catch (const Ort::Exception& e) {
+    // Provide a clear error message for TFLite version issues.
+    std::string msg = e.what();
+    if (msg.find("version") != std::string::npos &&
+        msg.find("not supported") != std::string::npos) {
+      throw std::runtime_error(
+          "TFLite model format not supported by this ONNX Runtime build. "
+          "Model: " + modelPath + ". Error: " + msg +
+          ". Consider converting the model to ONNX format.");
+    }
+    throw;
+  }
 
   // Cache input/output names.
   inputNameStrings_.clear();
