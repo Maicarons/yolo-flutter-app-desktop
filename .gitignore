@@ -115,3 +115,7 @@ store-assets/
 # ONNX Runtime large files
 *.pdb
 *.dll
+
+# ONNX Runtime SDK (download separately)
+windows/third_party/
+linux/third_party/
