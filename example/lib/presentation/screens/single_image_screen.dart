@@ -2,12 +2,12 @@
 
 import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:ultralytics_yolo/ultralytics_yolo.dart';
 
-/// Mirrors the iOS `YOLOSingleImageUIKit` example: pick a gallery image, run `yolo26n` detection, and list the
-/// resulting labels + confidences over the annotated image returned by the native side.
+/// Single image inference example for desktop platforms.
+/// Pick an image file, run YOLO detection, and display results.
 class SingleImageScreen extends StatefulWidget {
   const SingleImageScreen({super.key});
 
@@ -16,7 +16,6 @@ class SingleImageScreen extends StatefulWidget {
 }
 
 class _SingleImageScreenState extends State<SingleImageScreen> {
-  final _picker = ImagePicker();
   final _yolo = YOLO(modelPath: 'yolo26n');
 
   List<YOLOResult> _detections = const [];
@@ -45,22 +44,38 @@ class _SingleImageScreenState extends State<SingleImageScreen> {
       _showSnackBar('Model is loading, please wait...');
       return;
     }
-    final file = await _picker.pickImage(source: ImageSource.gallery);
-    if (file == null) return;
-    final bytes = await file.readAsBytes();
+
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) return;
+
+    final file = result.files.first;
+    final bytes = file.bytes;
+    if (bytes == null) return;
+
     if (mounted) setState(() => _isInferring = true);
-    final result = await _yolo.predict(bytes);
-    if (!mounted) return;
-    final detections = (result['detections'] as List?)
-        ?.whereType<Map>()
-        .map(YOLOResult.fromMap)
-        .toList(growable: false);
-    setState(() {
-      _detections = detections ?? const [];
-      _annotatedImage = result['annotatedImage'] as Uint8List?;
-      _imageBytes = bytes;
-      _isInferring = false;
-    });
+
+    try {
+      final yoloResult = await _yolo.predict(bytes);
+      if (!mounted) return;
+      final detections = (yoloResult['detections'] as List?)
+          ?.whereType<Map>()
+          .map(YOLOResult.fromMap)
+          .toList(growable: false);
+      setState(() {
+        _detections = detections ?? const [];
+        _annotatedImage = yoloResult['annotatedImage'] as Uint8List?;
+        _imageBytes = bytes;
+        _isInferring = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isInferring = false);
+        _showSnackBar('Inference error: $e');
+      }
+    }
   }
 
   void _showSnackBar(String message) {

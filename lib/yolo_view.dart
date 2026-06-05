@@ -366,7 +366,10 @@ class _YOLOViewState extends State<YOLOView> {
   @override
   Widget build(BuildContext context) {
     if (defaultTargetPlatform != TargetPlatform.android &&
-        defaultTargetPlatform != TargetPlatform.iOS) {
+        defaultTargetPlatform != TargetPlatform.iOS &&
+        defaultTargetPlatform != TargetPlatform.windows &&
+        defaultTargetPlatform != TargetPlatform.linux &&
+        defaultTargetPlatform != TargetPlatform.macOS) {
       return const Center(child: Text('Platform not supported for YOLOView'));
     }
     if (_resolutionError != null) {
@@ -439,9 +442,28 @@ class _YOLOViewState extends State<YOLOView> {
         creationParamsCodec: const StandardMessageCodec(),
         onPlatformViewCreated: _onPlatformViewCreated,
       );
+    } else if (defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux ||
+        defaultTargetPlatform == TargetPlatform.macOS) {
+      return _buildDesktopCameraView();
     } else {
       return const Center(child: Text('Platform not supported for YOLOView'));
     }
+  }
+
+  Widget _buildDesktopCameraView() {
+    // On desktop platforms, camera frames are rendered via a Flutter Texture.
+    // The native side registers the texture and pushes frames to it.
+    return _DesktopCameraView(
+      modelPath: _resolvedModel!.modelPath,
+      task: _resolvedModel!.task,
+      confidenceThreshold: widget.confidenceThreshold,
+      iouThreshold: widget.iouThreshold,
+      useGpu: widget.useGpu,
+      onResult: widget.onResult,
+      onPerformanceMetrics: widget.onPerformanceMetrics,
+      onPlatformViewCreated: _onPlatformViewCreated,
+    );
   }
 
   Map<String, dynamic> _buildCreationParams() {
@@ -545,4 +567,133 @@ class _YOLOViewState extends State<YOLOView> {
       _effectiveController.setZoomLevel(zoomLevel);
   Future<void> setShowOverlays(bool visible) =>
       _effectiveController.setShowOverlays(visible);
+}
+
+/// Windows-specific camera view that uses Flutter Texture for rendering.
+class _DesktopCameraView extends StatefulWidget {
+  final String modelPath;
+  final YOLOTask task;
+  final double confidenceThreshold;
+  final double iouThreshold;
+  final bool useGpu;
+  final Function(List<YOLOResult>)? onResult;
+  final Function(YOLOPerformanceMetrics)? onPerformanceMetrics;
+  final void Function(int)? onPlatformViewCreated;
+
+  const _DesktopCameraView({
+    required this.modelPath,
+    required this.task,
+    required this.confidenceThreshold,
+    required this.iouThreshold,
+    required this.useGpu,
+    this.onResult,
+    this.onPerformanceMetrics,
+    this.onPlatformViewCreated,
+  });
+
+  @override
+  State<_DesktopCameraView> createState() => _DesktopCameraViewState();
+}
+
+class _DesktopCameraViewState extends State<_DesktopCameraView> {
+  int? _textureId;
+  final String _viewId = UniqueKey().toString();
+  late MethodChannel _methodChannel;
+  late EventChannel _resultEventChannel;
+  StreamSubscription<dynamic>? _resultSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _methodChannel = ChannelConfig.createControlChannel(_viewId);
+    _resultEventChannel = ChannelConfig.createDetectionResultsChannel(_viewId);
+    _initCamera();
+  }
+
+  Future<void> _initCamera() async {
+    // Tell the native side to start the camera and register a texture.
+    try {
+      final result = await ChannelConfig.createSingleImageChannel()
+          .invokeMethod<Map>('startDesktopCamera', {
+        'viewId': _viewId,
+        'modelPath': widget.modelPath,
+        'task': widget.task.name,
+        'confidenceThreshold': widget.confidenceThreshold,
+        'iouThreshold': widget.iouThreshold,
+        'useGpu': widget.useGpu,
+      });
+      if (result != null && result['textureId'] != null) {
+        setState(() {
+          _textureId = result['textureId'] as int;
+        });
+        // Notify parent that platform view is ready.
+        widget.onPlatformViewCreated?.call(_textureId ?? 0);
+      }
+    } catch (e) {
+      logInfo('DesktopCameraView: Failed to init camera: $e');
+    }
+
+    // Subscribe to detection results.
+    _resultSubscription = _resultEventChannel.receiveBroadcastStream().listen(
+      (event) {
+        if (event is Map && widget.onResult != null) {
+          final detectionsData = event['detections'] as List<dynamic>? ?? [];
+          final results = <YOLOResult>[];
+          for (final d in detectionsData) {
+            if (d is Map) {
+              try {
+                results.add(YOLOResult.fromMap(d));
+              } catch (_) {}
+            }
+          }
+          widget.onResult!(results);
+        }
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _resultSubscription?.cancel();
+    // Stop the camera on the native side.
+    ChannelConfig.createSingleImageChannel()
+        .invokeMethod('stopDesktopCamera', {'viewId': _viewId})
+        .catchError((e) => logInfo('DesktopCameraView: Error stopping camera: $e'));
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_textureId == null) {
+      return const ColoredBox(
+        color: Colors.black,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 36,
+                height: 36,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              SizedBox(height: 14),
+              Text(
+                'Starting camera…',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Texture(textureId: _textureId!);
+  }
 }
