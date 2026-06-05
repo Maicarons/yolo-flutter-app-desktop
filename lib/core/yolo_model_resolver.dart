@@ -115,6 +115,17 @@ class YOLOModelResolver {
   static bool isOfficialModel(String source) =>
       _officialModelForId(_normalizeOfficialModelId(source)) != null;
 
+  /// Whether official [modelId] is already available without a network download.
+  static Future<bool> isOfficialModelAvailableLocally(String modelId) async {
+    final artifact = _officialModelForId(modelId);
+    if (artifact == null) return false;
+    final filename = artifact.assetName;
+    if (filename == null) return false;
+    final directory = await getApplicationSupportDirectory();
+    if (File('${directory.path}/$filename').existsSync()) return true;
+    return await _loadAssetBytes('assets/models/$filename') != null;
+  }
+
   static bool _isAvailableOnCurrentPlatform(_OfficialModelArtifact model) {
     // All desktop platforms use the same TFLite models.
     return model.assetName != null;

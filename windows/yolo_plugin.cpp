@@ -107,6 +107,10 @@ void YoloPlugin::HandleMethodCall(
     HandlePredictorInstance(args_or_empty, std::move(result));
   } else if (call.method_name() == "setModel") {
     HandleSetModel(args_or_empty, std::move(result));
+  } else if (call.method_name() == "startDesktopCamera") {
+    HandleStartCamera(args_or_empty, std::move(result));
+  } else if (call.method_name() == "stopDesktopCamera") {
+    HandleStopCamera(args_or_empty, std::move(result));
   } else if (call.method_name() == "getPlatformVersion") {
     HandleGetPlatformVersion(std::move(result));
   } else {
@@ -387,6 +391,76 @@ void YoloPlugin::HandleSetModel(
   } catch (const std::exception& e) {
     result->Error("MODEL_NOT_FOUND", e.what());
   }
+}
+
+// ── startDesktopCamera ───────────────────────────────────────────────────────
+
+void YoloPlugin::HandleStartCamera(
+    const flutter::EncodableMap& args,
+    std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
+  std::string viewId;
+  std::string modelPath = "yolo26n";
+  std::string taskStr = "detect";
+
+  auto it = args.find(flutter::EncodableValue("viewId"));
+  if (it != args.end()) {
+    if (auto* v = std::get_if<std::string>(&it->second)) viewId = *v;
+  }
+  it = args.find(flutter::EncodableValue("modelPath"));
+  if (it != args.end()) {
+    if (auto* v = std::get_if<std::string>(&it->second)) modelPath = *v;
+  }
+  it = args.find(flutter::EncodableValue("task"));
+  if (it != args.end()) {
+    if (auto* v = std::get_if<std::string>(&it->second)) taskStr = *v;
+  }
+
+  try {
+    // Register texture with Flutter.
+    auto* texture_registrar = registrar_->texture_registrar();
+    camera_texture_ = std::make_unique<CameraTexture>(texture_registrar);
+    int64_t texture_id = camera_texture_->Register();
+
+    // Create and load engine for this camera view.
+    auto& engine = engines_[viewId.empty() ? "default" : viewId];
+    if (!engine) engine = std::make_unique<YoloEngine>();
+
+    // Load model if path is provided.
+    std::string resolvedPath = ResolveModelPath(modelPath);
+    engine->LoadModel(resolvedPath, taskStr, true);
+
+    // Start camera capture.
+    camera_ = std::make_unique<CameraCapture>();
+    camera_->Start(0, "720p", [this](const uint8_t* data, int w, int h) {
+      // Push frame to Flutter texture.
+      if (camera_texture_) {
+        camera_texture_->UpdateFrame(data, w, h);
+      }
+    });
+
+    // Return texture ID to Dart.
+    flutter::EncodableMap response;
+    response[flutter::EncodableValue("textureId")] = texture_id;
+    result->Success(flutter::EncodableValue(response));
+  } catch (const std::exception& e) {
+    result->Error("CAMERA_ERROR", e.what());
+  }
+}
+
+// ── stopDesktopCamera ────────────────────────────────────────────────────────
+
+void YoloPlugin::HandleStopCamera(
+    const flutter::EncodableMap& args,
+    std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
+  if (camera_) {
+    camera_->Stop();
+    camera_.reset();
+  }
+  if (camera_texture_) {
+    camera_texture_->Unregister();
+    camera_texture_.reset();
+  }
+  result->Success(nullptr);
 }
 
 }  // namespace ultralytics_yolo

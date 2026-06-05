@@ -69,6 +69,14 @@ class YoloPlugin : public flutter::Plugin {
       const flutter::EncodableMap& args,
       std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
 
+  void HandleStartCamera(
+      const flutter::EncodableMap& args,
+      std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
+
+  void HandleStopCamera(
+      const flutter::EncodableMap& args,
+      std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
+
   void HandleGetPlatformVersion(
       std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
 
