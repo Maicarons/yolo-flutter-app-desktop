@@ -14,6 +14,7 @@ class YOLOExampleApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      debugShowCheckedModeBanner: false,
       title: 'Ultralytics YOLO',
       themeMode: ThemeMode.dark,
       theme: ThemeData.dark(useMaterial3: true),
