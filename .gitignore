@@ -111,3 +111,7 @@ Screenshot*.png
 
 # Local store listing assets
 store-assets/
+
+# ONNX Runtime large files
+*.pdb
+*.dll
